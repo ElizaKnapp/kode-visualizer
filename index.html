@@ -1,0 +1,177 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kode Visualizer: understand an AI-written PR in minutes</title>
+<meta name="description" content="A Claude Code skill and Cursor panel that turns a PR into a map: one tab per flow, the files to read in order, and what each diff changes.">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="nav">
+  <a class="brand" href="#"><span class="logo">◇</span> Kode Visualizer</a>
+  <nav>
+    <a href="#how">How it works</a>
+    <a href="#install">Install</a>
+    <a class="pill" href="https://github.com/ElizaKnapp/kode-visualizer">GitHub</a>
+  </nav>
+</header>
+
+<main>
+  <section class="hero">
+    <h1>Read an AI-written PR <span class="accent">in story order</span></h1>
+    <p class="lede">Kode Visualizer maps a PR inside Cursor. Each flow gets its own tab: what starts it, the
+      3 to 5 files to read in order, and what this PR changes in each one. Click a box and the file opens.</p>
+
+    <div class="contrast">
+      <div class="row minus"><span class="tag">- read 32 changed files</span> in whatever order GitHub lists them</div>
+      <div class="row plus"><span class="tag">+ follow 3 flows</span> from the API call to the money, one file at a time</div>
+    </div>
+
+    <div class="install-box" id="install">
+      <div class="install-head">
+        <span>Paste this in Terminal</span>
+        <button class="copy" data-copy="cmd">Copy</button>
+      </div>
+      <pre><code id="cmd">curl -fsSL https://…/install.sh | bash</code></pre>
+      <p class="small">It checks what you need, installs the skill and the Cursor extension, and changes nothing if
+        something is missing. Or <a id="zip-link" href="pr-map-0.1.0.zip" download>download the zip</a> and run
+        <code>bash install.sh pr-map-0.1.0.zip</code>.</p>
+    </div>
+  </section>
+
+  <section class="demo" aria-label="What the panel looks like">
+    <div class="window">
+      <div class="window-bar"><i></i><i></i><i></i><span>PR Map · bottom panel in Cursor</span></div>
+      <div class="tabs">
+        <span class="tab active">Signup → welcome email</span>
+        <span class="tab">Bounce webhook → suppress</span>
+        <span class="tab">Nightly retry job</span>
+      </div>
+      <div class="panel">
+        <svg class="diagram" viewBox="0 0 650 300" role="img" aria-label="A flow from an API route through two changed files to an email provider">
+          <defs>
+            <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+              <path d="M0,0 L10,5 L0,10 z" fill="#8a93a3"/>
+            </marker>
+          </defs>
+          <g class="edges">
+            <path class="flowing" d="M210,70 C250,70 250,152 286,152" marker-end="url(#arrow)"/>
+            <path class="flowing" d="M380,180 L380,224" marker-end="url(#arrow)"/>
+            <path class="flowing" d="M470,253 C540,253 555,180 555,124" marker-end="url(#arrow)"/>
+          </g>
+          <g class="node unchanged"><rect x="20" y="45" width="190" height="50" rx="10"/><text x="38" y="67">POST /api/v1/signup</text><text class="sub" x="38" y="84">trigger · unchanged</text></g>
+          <g class="node modified"><rect x="290" y="125" width="180" height="55" rx="10"/><text x="308" y="148">SignupActivity</text><text class="sub" x="308" y="166">changed</text></g>
+          <g class="node added"><rect x="290" y="228" width="180" height="50" rx="10"/><text x="308" y="250">WelcomeEmailJob</text><text class="sub" x="308" y="266">new</text></g>
+          <g class="node unchanged"><rect x="490" y="70" width="145" height="50" rx="10"/><text x="506" y="92">Email provider</text><text class="sub" x="506" y="108">unchanged</text></g>
+          <g class="badge"><circle cx="292" cy="127" r="11"/><text x="292" y="131">1</text></g>
+          <g class="badge"><circle cx="292" cy="230" r="11"/><text x="292" y="234">2</text></g>
+        </svg>
+        <aside class="side">
+          <div class="kicker">Starts with: API call</div>
+          <code class="trigger">POST /api/v1/signup</code>
+          <h3>How it fits together</h3>
+          <p>A user signs up. The activity saves the user, then queues the welcome job. The job sends the email.</p>
+          <h3>Files to review, in order</h3>
+          <ol class="files">
+            <li class="active"><b>1</b> signup_activity.rb</li>
+            <li><b>2</b> welcome_email_job.rb</li>
+          </ol>
+          <div class="this-file">
+            <h3>This file</h3>
+            <p>The activity now queues the welcome job after the save, not inside it. A failed send no longer
+              rolls back the signup.</p>
+          </div>
+        </aside>
+      </div>
+    </div>
+    <div class="legend">
+      <span><i class="sw added"></i>new</span>
+      <span><i class="sw modified"></i>changed</span>
+      <span><i class="sw removed"></i>deleted</span>
+      <span><i class="sw unchanged"></i>untouched code it talks to</span>
+      <span><i class="num">1</i>read this first</span>
+    </div>
+  </section>
+
+  <section class="features" id="how">
+    <h2>How it works</h2>
+    <div class="grid">
+      <article>
+        <h3>One tab per flow</h3>
+        <p>Each tab starts where the code starts: an API call, a webhook, a job or an event. Then it lists the
+          3 to 5 files that run, in the order they run.</p>
+      </article>
+      <article>
+        <h3>A summary for each file</h3>
+        <p>Open a file and the panel says what this PR changes in it, for the flow you're on. One summary per
+          flow says how the files fit together.</p>
+      </article>
+      <article>
+        <h3>Click to open</h3>
+        <p>Click a box or a file and it opens in the editor at the right line. The sidebar groups every changed
+          file and opens its diff.</p>
+      </article>
+      <article>
+        <h3>Ask Cursor's chat</h3>
+        <p>The chat on the right knows which flow, file and lines you're looking at. Ask "why does this skip the
+          charge?" and it answers about that spot.</p>
+      </article>
+      <article>
+        <h3>Stays on your machine</h3>
+        <p>The diagram is drawn offline by a pinned copy of PR Lens. Nothing is posted to GitHub. Map files stay
+          out of git.</p>
+      </article>
+      <article>
+        <h3>Shows where money moves</h3>
+        <p>If a flow ends in a charge, payout or transfer, that box is in the diagram and the summary says so.</p>
+      </article>
+    </div>
+  </section>
+
+  <section class="steps">
+    <h2>Use it</h2>
+    <ol>
+      <li><b>Install</b> with the command above, then reload Cursor (Cmd+Shift+P → Developer: Reload Window).</li>
+      <li><b>Check out</b> the PR's branch.</li>
+      <li><b>Click Map this PR</b> in the PR Map tab of the bottom panel. It takes 2 to 8 minutes.</li>
+      <li><b>Pick a flow</b> and read its files in order.</li>
+    </ol>
+  </section>
+
+  <section class="needs">
+    <h2>You need</h2>
+    <ul>
+      <li><b>Cursor</b></li>
+      <li><b>Claude Code</b>, signed in</li>
+      <li><b>Node 20.7</b> or newer</li>
+      <li><b>GitHub CLI</b>, signed in</li>
+    </ul>
+    <p class="small">A map costs about $1 to $2 of Claude usage. Arrows and summaries are an AI's reading of the
+      code, so check them against the diff.</p>
+    <h3>Remove it</h3>
+    <pre><code>cursor --uninstall-extension kikoff-local.pr-map
+rm -rf ~/.claude/skills/pr-map</code></pre>
+  </section>
+</main>
+
+<footer>
+  Built at Kikoff hackweek on <a href="https://prlens.dev">PR Lens</a>.
+</footer>
+
+<script>
+  // The command points at wherever this page is hosted, so it works on any URL.
+  const here = new URL(".", location.href).href;
+  document.getElementById("cmd").textContent =
+    `curl -fsSL ${here}install.sh | PR_MAP_ZIP_URL=${here}pr-map-0.1.0.zip bash`;
+
+  document.querySelectorAll(".copy").forEach((button) => {
+    button.addEventListener("click", async () => {
+      await navigator.clipboard.writeText(document.getElementById(button.dataset.copy).textContent);
+      button.textContent = "Copied";
+      setTimeout(() => (button.textContent = "Copy"), 1500);
+    });
+  });
+</script>
+</body>
+</html>
