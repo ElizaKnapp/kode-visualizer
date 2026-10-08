@@ -1,0 +1,114 @@
+#!/usr/bin/env bash
+# Ship the commit you're on to the hackweek sandbox. See docs/deploy.md.
+# To ship a new PR Map, run bin/release first and commit what it changes.
+#
+#   bin/deploy             build this commit, upload it, and switch the site to it
+#   bin/deploy --restart   no new code: start fresh containers
+#   bin/deploy --dry-run   check everything and show what would change, change nothing
+#
+# ECS starts the new version next to the old one and only moves traffic once
+# /health passes, so a broken build leaves the old version running.
+set -euo pipefail
+cd "$(dirname "$0")/.."
+
+PROFILE=hackweek-a
+REGION=us-west-2
+ACCOUNT=632472162753
+NAME=hackweek-eliza-knapp-kode-visualizer
+REPO=$ACCOUNT.dkr.ecr.$REGION.amazonaws.com/$NAME
+URL=https://eliza-knapp-kode-visualizer.a.hackweek.kikoff.dev
+# The zip the page links to. The last check downloads it.
+zip=$(grep -o 'pr-map-[0-9.]*\.zip' index.html | head -1)
+export AWS_PROFILE=$PROFILE AWS_REGION=$REGION AWS_DEFAULT_REGION=$REGION
+
+mode=deploy
+case "${1:-}" in
+  "") ;;
+  --restart) mode=restart ;;
+  --dry-run) mode=dry-run ;;
+  *) echo "usage: bin/deploy [--restart | --dry-run]" >&2; exit 2 ;;
+esac
+
+step() { printf '\n==> %s\n' "$*"; }
+fail() { printf 'error: %s\n' "$*" >&2; exit 1; }
+
+step "Checking your AWS login"
+aws sts get-caller-identity --query Arn --output text 2>/dev/null ||
+  fail "not signed in to AWS. From Kikoff/infrastructure/projects/hackweek, run: bash setup-aws.sh --profile $PROFILE"
+
+if [ "$mode" = restart ]; then
+  step "Starting fresh containers"
+  aws ecs update-service --cluster "$NAME" --service "$NAME" --force-new-deployment \
+    --query 'service.deployments[0].status' --output text
+else
+  # The image is labelled with the commit, so it has to be exactly that commit.
+  if [ -n "$(git status --porcelain)" ]; then
+    [ "$mode" = dry-run ] ||
+      fail "you have uncommitted changes. Commit or stash them, so the image matches its commit."
+    echo "  (uncommitted changes: fine for a dry run, a real deploy will refuse)"
+  fi
+  docker info >/dev/null 2>&1 || fail "Docker isn't running. Open Docker Desktop and try again."
+
+  # The page links to one zip by name. A version bump that misses index.html would ship a broken link.
+  [ -f "$zip" ] || fail "index.html links to $zip, but that file isn't here. Run bin/release, then fix the name in index.html."
+
+  commit=$(git rev-parse --short HEAD)
+  image=$REPO:$commit
+
+  step "Making task definition settings for $commit"
+  current=$(aws ecs describe-services --cluster "$NAME" --services "$NAME" \
+    --query 'services[0].taskDefinition' --output text)
+  # A copy of what's live now with only the image swapped, so settings
+  # carry over. AWS adds read-only fields on describe that it
+  # refuses on register, so those come off.
+  aws ecs describe-task-definition --task-definition "$current" --include TAGS --output json |
+    IMAGE="$image" python3 -c '
+import json, os, sys
+d = json.load(sys.stdin)
+td = d["taskDefinition"]
+for key in ("taskDefinitionArn", "revision", "status", "requiresAttributes",
+            "compatibilities", "registeredAt", "registeredBy", "deregisteredAt"):
+    td.pop(key, None)
+new = os.environ["IMAGE"]
+old = td["containerDefinitions"][0]["image"]
+td["containerDefinitions"][0]["image"] = new
+if d.get("tags"):
+    td["tags"] = d["tags"]
+json.dump(td, open(sys.argv[1], "w"))
+print("  image: " + old + "\n      -> " + new)
+' /tmp/kode-visualizer-taskdef.json
+
+  if [ "$mode" = dry-run ]; then
+    step "Dry run: nothing built, uploaded or changed"
+    rm -f /tmp/kode-visualizer-taskdef.json
+    exit 0
+  fi
+
+  step "Building $image"
+  docker build --platform linux/amd64 -t "$image" .
+
+  step "Uploading it"
+  aws ecr get-login-password | docker login --username AWS --password-stdin "${REPO%%/*}" >/dev/null
+  docker push "$image" | tail -1
+
+  step "Switching the site to it"
+  revision=$(aws ecs register-task-definition --cli-input-json file:///tmp/kode-visualizer-taskdef.json \
+    --query taskDefinition.taskDefinitionArn --output text)
+  rm -f /tmp/kode-visualizer-taskdef.json
+  echo "  $revision"
+  aws ecs update-service --cluster "$NAME" --service "$NAME" --task-definition "$revision" \
+    --query 'service.deployments[0].status' --output text
+fi
+
+step "Waiting for the new version to pass its health check (2-3 minutes)"
+aws ecs wait services-stable --cluster "$NAME" --services "$NAME" ||
+  fail "it didn't settle. The old version may still be serving. Check: aws logs tail /ecs/$NAME --since 15m"
+
+step "Checking $URL"
+if curl --noproxy '*' -fsS --max-time 15 "$URL/health" >/dev/null &&
+   curl --noproxy '*' -fsS --max-time 15 "$URL/install.sh" | grep -q 'Installs PR Map' &&
+   curl --noproxy '*' -fsS --max-time 15 -o /dev/null "$URL/$zip"; then
+  echo "  live: the page, install.sh and $zip all download"
+else
+  echo "  AWS says it's healthy, but this laptop can't reach it. Is Twingate connected?"
+fi

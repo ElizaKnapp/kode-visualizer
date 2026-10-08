@@ -23,10 +23,14 @@ The skill's source lives in `~/Kikoff/.claude/skills/pr-map`. Its export script 
 the zip and `install.sh` straight into this repo:
 
 ```bash
-~/Kikoff/.claude/skills/pr-map/bin/export ~/Kikoff/kode-visualizer
+bin/release
 ```
 
 When the version changes, update the zip name in `index.html` too.
+
+## Deploy
+
+`bin/deploy` ships the committed site to the hackweek sandbox. See [docs/deploy.md](docs/deploy.md).
 
 ## Try the page locally
 

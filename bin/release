@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+# Rebuilds the zip and install.sh from the skill's source, into this repo.
+# Commit what it changes, then run bin/deploy.
+set -euo pipefail
+cd "$(dirname "$0")/.."
+~/Kikoff/.claude/skills/pr-map/bin/export "$PWD"
+git status --short
