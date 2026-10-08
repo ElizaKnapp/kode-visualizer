@@ -19,8 +19,8 @@ curl -fsSL https://<site>/install.sh | PR_MAP_ZIP_URL=https://<site>/pr-map-0.1.
 
 ## Ship a new version
 
-The skill's source lives in `~/Kikoff/.claude/skills/pr-map`. Its export script rebuilds the extension and writes
-the zip and `install.sh` straight into this repo:
+The skill's source lives in `~/Kikoff/.claude/skills/pr-map`. `bin/release` runs its export script, which
+rebuilds the extension and writes the zip and `install.sh` straight into this repo. Commit what it changes:
 
 ```bash
 bin/release
@@ -30,7 +30,8 @@ When the version changes, update the zip name in `index.html` too.
 
 ## Deploy
 
-`bin/deploy` ships the committed site to the hackweek sandbox. See [docs/deploy.md](docs/deploy.md).
+Live at https://eliza-knapp-kode-visualizer.a.hackweek.kikoff.dev (Twingate on). `bin/deploy` ships the committed
+site there. See [docs/deploy.md](docs/deploy.md).
 
 ## Try the page locally
 
